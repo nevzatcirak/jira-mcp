@@ -119,6 +119,12 @@ npm install && npm run build
 node dist/index.js
 ```
 
+**Doğrulama:**
+
+```bash
+jira-mcp --version
+```
+
 ---
 
 ## ⚙️ Configuration
