@@ -46,6 +46,14 @@ jobs:
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
 
+      - name: Verify lockfile covers linux native deps
+        shell: bash
+        run: |
+          grep -q "node_modules/@rollup/rollup-linux-x64-gnu" package-lock.json \
+            || { echo "::error::lockfile missing linux native deps - regenerate on linux or with npm >= 9 (npm/cli#4828)"; exit 1; }
+          grep -q "node_modules/@esbuild/linux-x64" package-lock.json \
+            || { echo "::error::lockfile missing esbuild linux native deps - regenerate on linux or with npm >= 9 (npm/cli#4828)"; exit 1; }
+
       - name: Test
         run: npm test
 
