@@ -143,14 +143,24 @@ jira-mcp --version
 
 ## 🔁 Migrating from other jira-mcp packages
 
-Several other npm packages ship the same `jira-mcp` bin name (e.g. `@hackdonalds/jira-mcp`).
-Installing this package globally **without removing the other one first** fails with an
-`EEXIST` error. Remove the old package, then install:
+If a different jira-mcp package was installed earlier — one that registers the same
+`jira-mcp` bin name — a global install of this package fails with an `EEXIST` error.
+Find and remove the old package first:
 
 ```bash
-npm rm -g @hackdonalds/jira-mcp
-npm i -g @nevzatcirak/jira-mcp
+# unix
+npm ls -g | grep jira
+npm rm -g <old-package-name>
 ```
+
+```powershell
+# Windows (PowerShell)
+npm ls -g | findstr jira
+npm rm -g <old-package-name>
+```
+
+If a leftover bin shim remains, check which package it points to with
+`where jira-mcp` (Windows) or `which -a jira-mcp` (unix).
 
 > MCP clients that run the server through `npx` (the recommended setup) are **not**
 > affected by this conflict — `npx` resolves the package by full name and does not use
