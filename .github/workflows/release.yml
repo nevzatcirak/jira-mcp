@@ -15,7 +15,7 @@ jobs:
       contents: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Guard — input must be valid semver
         run: |
@@ -26,13 +26,19 @@ jobs:
           fi
 
       - name: Use Node.js 20
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 20
           cache: npm
 
       - name: Bump version (package.json + package-lock.json)
         run: npm version "${{ inputs.version }}" --no-git-tag-version
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Test (release sanity check)
+        run: npm test
 
       - name: Commit and tag
         run: |
