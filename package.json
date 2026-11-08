@@ -1,6 +1,6 @@
 {
   "name": "@nevzatcirak/jira-mcp",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Deployment-agnostic Jira MCP server (stdio) for Jira Server, Data Center and Cloud — compact issue cards, semantic actions, full Agile board support",
   "type": "module",
   "license": "MIT",

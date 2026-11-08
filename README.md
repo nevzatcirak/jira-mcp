@@ -19,23 +19,36 @@ A **deployment-agnostic Jira MCP server** over stdio — works with **Jira Serve
 
 ## 🎯 Why this package
 
-Raw Jira REST payloads are enormous — every issue drags avatars, schemas, changelogs, expand lists and renderer metadata into your LLM's context window. This server projects each issue into a **~300 byte card**, cutting context cost by **97%+** while keeping every field an agent actually needs.
+Raw Jira REST payloads are enormous — every issue drags avatars, schemas, changelogs, expand lists and renderer metadata into your LLM's context window. This server projects each issue into a **~230 byte card**, cutting context cost by **~99%** while keeping every field an agent actually needs.
 
-| | Raw Jira MCP response | jira-mcp card projection |
+| | Raw Jira REST payload | jira-mcp card projection |
 |---|---|---|
-| Size per issue | 40 KB+ | ~300 bytes |
-| Context cost (25 issues) | ~1 MB / ~260K tokens | ~8 KB / ~2K tokens |
-| Reduction | — | **97%+ smaller** |
+| Size per issue | ~40 KB *(typical)* | ~230 bytes *(measured)* |
+| Context cost (25 issues) | ~1 MB / ~250K tokens *(typical)* | ~5.7 KB / ~1.4K tokens *(measured)* |
+| Reduction | — | **~99% smaller** |
 
-Example `npm run benchmark` output against a live instance:
+**Measurement context** (measured values): Jira Server/DC instance, Scrum board
+(`boardId: 10212`), `jira_get_board_backlog` with `maxResults=25` — 25 issue cards
+from the real response, ~230 bytes per issue on average. The raw-payload column has
+**no measured baseline for this instance**: it uses the typical v2 search response
+size of ~40 KB per issue, so those numbers are labeled *typical*, not measured.
+Card fields used in the measurement: `key`, `summary`, `type`, `status`, `assignee`,
+`priority`, `labels`, `parent`, `updated`.
 
-```
-method                          items   bytes   ~tokens
-------------------------------  -----  -------  -------
-old (no fields, maxResults=50)     50   1052530   263132
-new (cards, maxResults=25)         25      9110     2277
+An example card from that measurement, verbatim:
 
-reduction vs old (bytes): 99.1%
+```json
+{
+  "key": "KAPI-215",
+  "summary": "Sync servisindeki OPA güncelleme yeteneğin Kapı tarafından sağlanması",
+  "type": "Task",
+  "status": "Resolved",
+  "assignee": "Barış Buğra ÖZDEMİR",
+  "priority": "Medium",
+  "labels": [],
+  "parent": null,
+  "updated": "2026-10-02"
+}
 ```
 
 Run it yourself with `npm run benchmark -- "<your JQL>"` — numbers depend on your instance, fields and issue size.
@@ -123,7 +136,45 @@ node dist/index.js
 
 ```bash
 jira-mcp --version
+# @nevzatcirak/jira-mcp 1.0.1
 ```
+
+---
+
+## 🔁 Migrating from other jira-mcp packages
+
+Several other npm packages ship the same `jira-mcp` bin name (e.g. `@hackdonalds/jira-mcp`).
+Installing this package globally **without removing the other one first** fails with an
+`EEXIST` error. Remove the old package, then install:
+
+```bash
+npm rm -g @hackdonalds/jira-mcp
+npm i -g @nevzatcirak/jira-mcp
+```
+
+> MCP clients that run the server through `npx` (the recommended setup) are **not**
+> affected by this conflict — `npx` resolves the package by full name and does not use
+> the global bin shim.
+
+---
+
+## 🩺 Troubleshooting
+
+**`npx` crashes on every run.**
+Corrupted `npx` cache. Delete the cached package folder and `npx` re-downloads it on the
+next run:
+
+- Windows: `%LocalAppData%\npm-cache\_npx`
+- unix: `~/.npm/_npx`
+
+**The old 6-tool server still seems to run.**
+A leftover global bin shim may still resolve to the old package. Check which package the
+shim points to with `where jira-mcp` (Windows) or `which jira-mcp` (unix), remove the old
+package (`npm rm -g <old-package>`), then reinstall this one.
+
+**`"The backlog is not available on Kanban boards"`**
+Jira platform restriction: the backlog endpoint exists only on **Scrum** boards. For a
+Kanban board, use `jira_get_board_issues` with a JQL filter instead.
 
 ---
 

@@ -10,7 +10,7 @@ import { registerAllTools } from "./tools/registry.js";
 import { logger, registerSecrets } from "./util/logger.js";
 
 const SERVER_NAME = "jira-mcp";
-const SERVER_VERSION = "0.1.0";
+const FALLBACK_VERSION = "0.0.0";
 
 interface PackageInfo {
   name: string;
@@ -23,16 +23,19 @@ function readPackageInfo(): PackageInfo {
     const pkg = JSON.parse(raw) as { name?: string; version?: string };
     return {
       name: pkg.name ?? SERVER_NAME,
-      version: pkg.version ?? SERVER_VERSION,
+      version: pkg.version ?? FALLBACK_VERSION,
     };
   } catch {
-    return { name: SERVER_NAME, version: SERVER_VERSION };
+    return { name: SERVER_NAME, version: FALLBACK_VERSION };
   }
 }
 
+// Read once at startup — single source of truth for --version output, the
+// serverInfo.version in the stdio initialize handshake, and startup logging.
+const PACKAGE_INFO = readPackageInfo();
+
 function printVersion(): void {
-  const pkg = readPackageInfo();
-  process.stdout.write(`${pkg.name} ${pkg.version}\n`);
+  process.stdout.write(`${PACKAGE_INFO.name} ${PACKAGE_INFO.version}\n`);
 }
 
 function printHelp(): void {
@@ -84,13 +87,13 @@ async function main(): Promise<void> {
   const agile = new AgileClient(client, profile);
 
   // 3. Server + tool registration.
-  const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION });
+  const server = new McpServer({ name: PACKAGE_INFO.name, version: PACKAGE_INFO.version });
   registerAllTools(server, { config, profile, client, agile });
 
   // 4. stdio transport. stdout belongs to MCP; logging goes to stderr only.
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  logger.info(`${SERVER_NAME} v${SERVER_VERSION} listening on stdio`);
+  logger.info(`${PACKAGE_INFO.name} v${PACKAGE_INFO.version} listening on stdio`);
 }
 
 if (!handleCliArgs(process.argv.slice(2))) {
