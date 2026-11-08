@@ -1,0 +1,60 @@
+{
+  "name": "@nevzatcirak/jira-mcp",
+  "version": "1.0.0",
+  "description": "Deployment-agnostic Jira MCP server (stdio) for Jira Server, Data Center and Cloud — compact issue cards, semantic actions, full Agile board support",
+  "type": "module",
+  "license": "MIT",
+  "author": "Nevzat Cirak",
+  "homepage": "https://github.com/nevzatcirak/jira-mcp#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nevzatcirak/jira-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/nevzatcirak/jira-mcp/issues"
+  },
+  "publishConfig": {
+    "@nevzatcirak:registry": "https://registry.npmjs.org/"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "jira-mcp": "dist/index.js"
+  },
+  "keywords": [
+    "jira",
+    "mcp",
+    "model-context-protocol",
+    "atlassian",
+    "agile",
+    "board",
+    "backlog",
+    "worklog"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "lint": "eslint .",
+    "benchmark": "tsc -p tsconfig.benchmark.json && node dist-benchmark/benchmark/search-size.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "eslint": "^9.20.0",
+    "typescript": "^5.7.0",
+    "typescript-eslint": "^8.20.0",
+    "vitest": "^3.0.0"
+  }
+}

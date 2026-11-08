@@ -1,0 +1,58 @@
+name: Publish
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org/
+          cache: npm
+
+      - name: Guard — package name must be @nevzatcirak/jira-mcp
+        run: |
+          PKG_NAME="$(npm pkg get name --workspaces=false | tr -d '"')"
+          echo "package.json name: ${PKG_NAME}"
+          if [ "${PKG_NAME}" != "@nevzatcirak/jira-mcp" ]; then
+            echo "::error::Wrong package name '${PKG_NAME}' — expected '@nevzatcirak/jira-mcp'. Refusing to publish."
+            exit 1
+          fi
+
+      - name: Guard — version must match pushed tag
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        run: |
+          PKG_VERSION="v$(npm pkg get version --workspaces=false | tr -d '"')"
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+          echo "package.json version: ${PKG_VERSION}"
+          echo "pushed tag:            ${TAG_NAME}"
+          if [ "${PKG_VERSION}" != "${TAG_NAME}" ]; then
+            echo "::error::Version mismatch — package.json is ${PKG_VERSION} but pushed tag is ${TAG_NAME}. Bump package.json and push a matching tag."
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Publish to npm
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

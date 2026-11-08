@@ -1,0 +1,14 @@
+node_modules/
+dist/
+dist-benchmark/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Logs / local artifacts
+*.log
+*.tsbuildinfo
+.vitest/
+.idea/
