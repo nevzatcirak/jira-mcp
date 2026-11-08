@@ -177,6 +177,16 @@ next run:
 - Windows: `%LocalAppData%\npm-cache\_npx`
 - unix: `~/.npm/_npx`
 
+**Windows: remote npx invocation fails ("not recognized").**
+On Windows, the short remote form `npx -y @nevzatcirak/jira-mcp --version` can fail with
+a "not recognized" error, while the same command works on unix. This is **known npx
+behavior on Windows, not a package defect**. Use one of these workarounds:
+
+- Install globally and run the bin: `npm i -g @nevzatcirak/jira-mcp` then `jira-mcp`
+- Pass the package and bin separately: `npx -y -p @nevzatcirak/jira-mcp jira-mcp`
+- Skip the shim entirely — call the entry point with node in your MCP client config:
+  `node <install-path>/dist/index.js`
+
 **The old 6-tool server still seems to run.**
 A leftover global bin shim may still resolve to the old package. Check which package the
 shim points to with `where jira-mcp` (Windows) or `which jira-mcp` (unix), remove the old
