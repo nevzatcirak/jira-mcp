@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { buildWorklogRequest } from "./jiraAddWorklog.js";
+import { buildWorklogRequest, decimalHoursToDuration } from "./jiraAddWorklog.js";
 import { remoteLinkBody } from "./jiraAddRemoteLink.js";
 import { assertFileSize } from "./jiraAddAttachment.js";
 import { InstanceProfile } from "../client/InstanceProfile.js";
@@ -31,6 +31,7 @@ const serverConfig: JiraConfig = {
   apiToken: "test-token",
   email: null,
   instanceType: "server",
+  providersConfigPath: null,
 };
 
 function makeContext(config: JiraConfig = serverConfig): ToolContext {
@@ -54,9 +55,51 @@ describe("buildWorklogRequest", () => {
     expect(query).toEqual({});
   });
 
-  it("sends timeSpentSeconds when seconds are given", () => {
-    const { body } = buildWorklogRequest({ timeSpent: 12600, adjustEstimate: "auto" }, "server", undefined);
-    expect(body).toEqual({ timeSpentSeconds: 12600 });
+  it("converts decimal hours to a duration rounded to the nearest minute", () => {
+    expect(decimalHoursToDuration(7.71)).toBe("7h 43m");
+    expect(decimalHoursToDuration(8.05)).toBe("8h 3m");
+    expect(decimalHoursToDuration(0.5)).toBe("0h 30m");
+    expect(decimalHoursToDuration(8.0)).toBe("8h");
+    expect(decimalHoursToDuration(0.005)).toBe("0h 1m"); // minimum 1 minute
+    expect(decimalHoursToDuration(0.999)).toBe("1h"); // 59.94m rounds up to a full hour
+  });
+
+  it("converts numeric and numeric-string timeSpent into a duration string", () => {
+    const numeric = buildWorklogRequest({ timeSpent: 8.05, adjustEstimate: "auto" }, "server", undefined);
+    expect(numeric.body).toEqual({ timeSpent: "8h 3m" });
+
+    const numericString = buildWorklogRequest({ timeSpent: "7.71", adjustEstimate: "auto" }, "server", undefined);
+    expect(numericString.body).toEqual({ timeSpent: "7h 43m" });
+  });
+
+  it("combines a date-only started with startedHour (default 07:30)", () => {
+    const defaultHour = buildWorklogRequest(
+      { timeSpent: "1h", started: "2026-01-14", adjustEstimate: "auto" },
+      "server",
+      undefined,
+    );
+    expect(defaultHour.body.started).toBe("2026-01-14T07:30:00");
+
+    const customHour = buildWorklogRequest(
+      { timeSpent: "1h", started: "2026-01-14", startedHour: "09:15", adjustEstimate: "auto" },
+      "server",
+      undefined,
+    );
+    expect(customHour.body.started).toBe("2026-01-14T09:15:00");
+  });
+
+  it("uses a full ISO started as-is and ignores startedHour", () => {
+    const { body } = buildWorklogRequest(
+      {
+        timeSpent: "1h",
+        started: "2026-01-14T10:33:00.000+0000",
+        startedHour: "09:15",
+        adjustEstimate: "auto",
+      },
+      "server",
+      undefined,
+    );
+    expect(body.started).toBe("2026-01-14T10:33:00.000+0000");
   });
 
   it("includes started and the (deployment-formatted) comment", () => {

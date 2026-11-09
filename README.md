@@ -55,7 +55,7 @@ Run it yourself with `npm run benchmark -- "<your JQL>"` — numbers depend on y
 
 ---
 
-## ✨ Features (24 tools)
+## ✨ Features (25 tools)
 
 ### 🔍 Discovery
 
@@ -94,7 +94,7 @@ Run it yourself with `npm run benchmark -- "<your JQL>"` — numbers depend on y
 
 | Tool | Purpose | Key parameters |
 |---|---|---|
-| `jira_add_worklog` | Log work: `'3h 30m'` or seconds; estimate adjust modes | `issueKey`, `timeSpent`, `started?`, `adjustEstimate?: auto\|leave\|new\|manual` |
+| `jira_add_worklog` | Log work: `'3h 30m'` or decimal hours (`8.05` → `'8h 3m'`); estimate adjust modes | `issueKey`, `timeSpent`, `started?`, `startedHour?` (default `07:30`), `adjustEstimate?: auto\|leave\|new\|manual` |
 | `jira_list_worklogs` | Paginated worklog list | `issueKey`, pagination |
 | `jira_link_issues` | Link two issues (`Relates`, `Blocks`, …) | `linkType`, `inwardIssueKey` / `outwardIssueKey` |
 | `jira_add_remote_link` | Attach an external URL to an issue | `issueKey`, `url`, `title?` |
@@ -105,6 +105,12 @@ Run it yourself with `npm run benchmark -- "<your JQL>"` — numbers depend on y
 | Tool | Purpose | Key parameters |
 |---|---|---|
 | `jira_move_issues_to_sprint` | Move up to 50 issues into a sprint; returns `{moved, errors}` | `sprintId`, `issueKeys[1..50]` |
+
+### 🧩 Extensibility
+
+| Tool | Purpose | Key parameters |
+|---|---|---|
+| `jira_provider_call` | Call a workplace-specific Jira plugin endpoint defined in `JIRA_PROVIDERS_CONFIG` (no code changes needed) | `provider`, `endpoint`, `params?` |
 
 ---
 
@@ -136,7 +142,7 @@ node dist/index.js
 
 ```bash
 jira-mcp --version
-# @nevzatcirak/jira-mcp 1.0.1
+# @nevzatcirak/jira-mcp 1.1.0
 ```
 
 ---
@@ -206,6 +212,7 @@ Kanban board, use `jira_get_board_issues` with a JQL filter instead.
 | `JIRA_API_TOKEN` | ✅ | PAT (Server/DC) or API token (Cloud) |
 | `JIRA_EMAIL` | Cloud only | Cloud account email (required when instance type is cloud) |
 | `JIRA_INSTANCE_TYPE` | — | `auto` (default) \| `server` \| `cloud` |
+| `JIRA_PROVIDERS_CONFIG` | — | Path to a JSONC file defining custom provider endpoints for `jira_provider_call` (see [Custom providers](#-custom-providers)) |
 
 **Server/DC vs Cloud authentication:**
 
@@ -218,6 +225,89 @@ Kanban board, use `jira_get_board_issues` with a JQL filter instead.
 | Auto-detect | `JIRA_INSTANCE_TYPE=auto` probes `/rest/api/2/serverInfo` once and caches the deployment type | |
 
 Config problems never crash the server — the tool call fails with a structured `CONFIG_MISSING` error listing the missing fields.
+
+---
+
+## 🧩 Custom providers
+
+Many workplaces run Jira plugins with their own REST endpoints (timesheet/attendance, custom reporting, …).
+The `jira_provider_call` tool lets agents call those endpoints **without any code changes**: the endpoints are
+defined in a JSONC config file, and `jira-mcp` stays deployment-agnostic — it ships **no** endpoint knowledge itself.
+
+**1 · Create a providers file** (copy [`examples/providers.example.jsonc`](./examples/providers.example.jsonc)):
+
+```jsonc
+{
+  "providers": {
+    "workplaceTimesheet": {
+      "description": "Timesheet/attendance plugin",
+      "endpoints": {
+        "dailyWorked": {
+          "method": "GET",                    // "GET" | "POST" (required)
+          "path": "/rest/<plugin>/1.0/daily-worked?period={start}+-+{end}&timesheetUser=currentUser()",
+          //           ^ path template (required); {param} placeholders are filled from `params`
+          "responseMapping": {                // optional projection of the raw JSON
+            "total": "total",
+            "dailyHours": "items[].hour"
+          },
+          "maxResponseBytes": 20000           // optional response size guard (default 200000)
+        }
+      }
+    }
+  }
+}
+```
+
+**2 · Point the server at the file** with `JIRA_PROVIDERS_CONFIG` (absolute path recommended):
+
+OpenCode (`opencode.json`):
+
+```json
+{
+  "mcp": {
+    "jira": {
+      "type": "local",
+      "command": ["npx", "-y", "@nevzatcirak/jira-mcp"],
+      "environment": {
+        "JIRA_BASE_URL": "https://acme-jira.example.com",
+        "JIRA_API_TOKEN": "your-personal-access-token",
+        "JIRA_PROVIDERS_CONFIG": "C:\\config\\jira-mcp.providers.jsonc"
+      }
+    }
+  }
+}
+```
+
+LibreChat (`librechat.yaml`):
+
+```yaml
+mcp_servers:
+  jira:
+    command: npx
+    args:
+      - -y
+      - "@nevzatcirak/jira-mcp"
+    env:
+      JIRA_BASE_URL: https://acme-jira.example.com
+      JIRA_API_TOKEN: your-personal-access-token
+      JIRA_PROVIDERS_CONFIG: /opt/librechat/config/jira-mcp.providers.jsonc
+```
+
+(Docker deployments: volume-mount the providers file into the container and pass the in-container path.)
+
+**3 · Call it:**
+
+```json
+{ "tool": "jira_provider_call", "arguments": { "provider": "workplaceTimesheet", "endpoint": "dailyWorked", "params": { "start": "2026-11-02", "end": "2026-11-08" } } }
+```
+
+**Behavior:**
+
+- Requests go through the shared HTTP layer — same Bearer/Basic auth, 30s timeout and 429/5xx retry as every other tool.
+- `{param}` placeholders in `path` are filled (URL-encoded) from `params`; parameters not used by the template are sent as the POST body on `POST` endpoints.
+- With `responseMapping`, only the projected fields are returned (simple paths: `total`, `summary.name`, `items[].hour`). Without it, the raw JSON is returned — capped by `maxResponseBytes` (`RESPONSE_TOO_LARGE` when exceeded).
+- The config file is re-read on every call, so edits apply without restarting the server.
+- Errors are structured: `CONFIG_MISSING` (env var unset, with setup hint), `PROVIDERS_CONFIG_INVALID` (missing/broken file), `PROVIDER_UNKNOWN` / `ENDPOINT_UNKNOWN` (both list the available names so the agent can self-correct), `RESPONSE_TOO_LARGE`.
 
 ---
 
@@ -311,6 +401,13 @@ Config problems never crash the server — the tool call fails with a structured
 { "tool": "jira_add_worklog", "arguments": { "issueKey": "ABC-123", "timeSpent": "3h 30m", "comment": "Implemented retry logic and tests" } }
 ```
 
+Decimal hours work too (`8.05` → `8h 3m`, rounded to the nearest minute), and a date-only `started`
+gets its time-of-day from `startedHour` (default `07:30`):
+
+```json
+{ "tool": "jira_add_worklog", "arguments": { "issueKey": "ABC-123", "timeSpent": 8.05, "started": "2026-11-09", "startedHour": "08:45", "comment": "Turnstile-tracked day" } }
+```
+
 **5 · Attach a web link:**
 
 ```json
@@ -337,6 +434,12 @@ Config problems never crash the server — the tool call fails with a structured
 
 ```json
 { "tool": "jira_assign_issue", "arguments": { "issueKey": "ABC-123", "assignee": "jdoe" } }
+```
+
+**9 · Call a workplace plugin endpoint (custom provider):**
+
+```json
+{ "tool": "jira_provider_call", "arguments": { "provider": "workplaceTimesheet", "endpoint": "dailyWorked", "params": { "start": "2026-11-02", "end": "2026-11-08" } } }
 ```
 
 ---
@@ -393,7 +496,7 @@ Keep passing `startAt: nextStartAt` until `hasMore` is `false`.
 }
 ```
 
-Fixed codes include `CONFIG_MISSING`, `INVALID_ARGUMENT`, `JIRA_TIMEOUT`, `JIRA_NETWORK`, `AMBIGUOUS_TRANSITION`, `TRANSITION_NOT_FOUND`, `USER_NOT_FOUND`, `AMBIGUOUS_USER`, `FILE_TOO_LARGE`. Jira's own field errors are preserved verbatim in `jiraErrors`.
+Fixed codes include `CONFIG_MISSING`, `INVALID_ARGUMENT`, `JIRA_TIMEOUT`, `JIRA_NETWORK`, `AMBIGUOUS_TRANSITION`, `TRANSITION_NOT_FOUND`, `USER_NOT_FOUND`, `AMBIGUOUS_USER`, `FILE_TOO_LARGE`, `PROVIDERS_CONFIG_INVALID`, `PROVIDER_UNKNOWN`, `ENDPOINT_UNKNOWN`, `RESPONSE_TOO_LARGE`. Jira's own field errors are preserved verbatim in `jiraErrors`.
 
 **Resilience.** 30s per-request timeout, up to 2 retries on 429/5xx with `Retry-After` awareness, and an automatic `agile/1.0` → `greenhopper/1.0` fallback for older Server instances.
 

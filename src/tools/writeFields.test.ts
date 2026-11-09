@@ -45,6 +45,7 @@ const serverConfig: JiraConfig = {
   apiToken: "test-token",
   email: null,
   instanceType: "server",
+  providersConfigPath: null,
 };
 
 const cloudConfig: JiraConfig = {
@@ -52,6 +53,7 @@ const cloudConfig: JiraConfig = {
   apiToken: "test-token",
   email: "bot@example.com",
   instanceType: "cloud",
+  providersConfigPath: null,
 };
 
 describe("isAccountIdLike", () => {

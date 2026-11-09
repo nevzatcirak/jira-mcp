@@ -9,6 +9,8 @@ export interface JiraConfig {
   /** Required for Jira Cloud only. */
   email: string | null;
   instanceType: InstanceTypePref;
+  /** Path to the custom providers JSONC file (jira_provider_call), or null. */
+  providersConfigPath: string | null;
 }
 
 export interface ConfigProblem {
@@ -87,7 +89,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): {
     });
   }
 
-  return { config: { baseUrl, apiToken, email, instanceType }, problems };
+  // --- custom providers config (optional, for jira_provider_call) ---
+  const providersConfigPath = env.JIRA_PROVIDERS_CONFIG?.trim() || null;
+
+  return { config: { baseUrl, apiToken, email, instanceType, providersConfigPath }, problems };
 }
 
 /**

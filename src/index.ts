@@ -48,7 +48,8 @@ function printHelp(): void {
       `  JIRA_BASE_URL        Jira instance taban URL'si (örn. https://jira.example.com)\n` +
       `  JIRA_API_TOKEN       PAT (Server/DC) veya API token (Cloud)\n` +
       `  JIRA_EMAIL           Cloud hesap e-postası (Cloud token ile birlikte zorunlu)\n` +
-      `  JIRA_INSTANCE_TYPE   auto (varsayılan) | server | cloud\n`,
+      `  JIRA_INSTANCE_TYPE   auto (varsayılan) | server | cloud\n` +
+      `  JIRA_PROVIDERS_CONFIG  jira_provider_call için providers JSONC dosya yolu (opsiyonel)\n`,
   );
 }
 

@@ -10,6 +10,7 @@ const config: JiraConfig = {
   apiToken: "test-token",
   email: null,
   instanceType: "server",
+  providersConfigPath: null,
 };
 
 let fetchMock: ReturnType<typeof vi.fn>;

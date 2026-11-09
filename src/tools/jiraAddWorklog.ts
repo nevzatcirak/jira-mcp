@@ -10,9 +10,64 @@ export type Deployment = "cloud" | "server";
 export interface WorklogArgs {
   timeSpent: string | number;
   started?: string;
+  startedHour?: string;
   comment?: string;
   adjustEstimate: "auto" | "leave" | "new" | "manual";
   newValue?: string;
+}
+
+/** Default work start hour applied when `started` is date-only (v1.1.0). */
+export const DEFAULT_STARTED_HOUR = "07:30";
+
+const DECIMAL_HOURS_PATTERN = /^\d+(\.\d+)?$/;
+const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Convert decimal hours (8.05) into a Jira duration string ("8h 3m"),
+ * rounding to the nearest minute (minimum 1 minute). Pure — exported for tests.
+ */
+export function decimalHoursToDuration(hours: number): string {
+  if (!Number.isFinite(hours) || hours < 0) {
+    throw new JiraMcpError({
+      code: "INVALID_ARGUMENT",
+      message: `timeSpent must be a non-negative number of hours (got ${hours})`,
+      hint: 'Pass decimal hours (e.g. 8.05) or a Jira duration string ("3h 30m").',
+    });
+  }
+  const minutes = Math.max(1, Math.round(hours * 60));
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m === 0 ? `${h}h` : `${h}h ${m}m`;
+}
+
+/**
+ * Map timeSpent onto the request body. Decimal hours ("8.05" / 8.05) become
+ * a rounded duration string ("8h 3m"); existing Jira duration strings
+ * ("3h 30m") pass through verbatim.
+ */
+function timeSpentBody(timeSpent: string | number): Record<string, unknown> {
+  if (typeof timeSpent === "number") {
+    return { timeSpent: decimalHoursToDuration(timeSpent) };
+  }
+  const trimmed = timeSpent.trim();
+  if (DECIMAL_HOURS_PATTERN.test(trimmed)) {
+    return { timeSpent: decimalHoursToDuration(Number(trimmed)) };
+  }
+  return { timeSpent };
+}
+
+/**
+ * `started` date-only (YYYY-MM-DD) gets the time-of-day from startedHour
+ * (default 07:30, local server time — same semantics Jira applies to naive
+ * timestamps). Full ISO `started` values are used as-is and startedHour is
+ * ignored.
+ */
+export function resolveStarted(started: string | undefined, startedHour?: string): string | undefined {
+  if (started === undefined) return undefined;
+  if (DATE_ONLY_PATTERN.test(started)) {
+    return `${started}T${startedHour ?? DEFAULT_STARTED_HOUR}:00`;
+  }
+  return started;
 }
 
 /**
@@ -34,11 +89,9 @@ export function buildWorklogRequest(
       });
     }
   }
-  const body: Record<string, unknown> =
-    typeof args.timeSpent === "number"
-      ? { timeSpentSeconds: args.timeSpent }
-      : { timeSpent: args.timeSpent };
-  if (args.started !== undefined) body.started = args.started;
+  const body: Record<string, unknown> = timeSpentBody(args.timeSpent);
+  const started = resolveStarted(args.started, args.startedHour);
+  if (started !== undefined) body.started = started;
   if (args.comment !== undefined) body.comment = commentBodyValue;
 
   const query: Record<string, string> = {};
@@ -57,9 +110,10 @@ export function buildWorklogRequest(
 }
 
 /**
- * POST /rest/api/2/issue/{key}/worklog — {timeSpent ("3h 30m") or
- * timeSpentSeconds, started (ISO 8601 with offset), comment}; estimate
- * adjustment via query params. Response: {id, timeSpent, created}.
+ * POST /rest/api/2/issue/{key}/worklog — {timeSpent (duration string, e.g.
+ * "3h 30m" or decimal hours "8.05" -> "8h 3m"), started (ISO 8601, or a
+ * YYYY-MM-DD date combined with startedHour), comment}; estimate adjustment
+ * via query params. Response: {id, timeSpent, created}.
  */
 export function registerJiraAddWorklog(server: McpServer, ctx: ToolContext): void {
   server.registerTool(
@@ -68,18 +122,29 @@ export function registerJiraAddWorklog(server: McpServer, ctx: ToolContext): voi
       title: "Add worklog",
       description:
         "Log work time on an issue. timeSpent is a Jira duration string " +
-        "('3h 30m') or seconds. adjustEstimate controls how the remaining " +
-        "estimate is updated (auto/leave/new/manual; new+manual need newValue).",
+        "('3h 30m') or decimal hours ('8.05' / 8.05 -> '8h 3m'). " +
+        "adjustEstimate controls how the remaining estimate is updated " +
+        "(auto/leave/new/manual; new+manual need newValue). started accepts a " +
+        "full ISO timestamp or a YYYY-MM-DD date (then startedHour, default " +
+        "'07:30', provides the time-of-day).",
       inputSchema: {
         issueKey: z.string().min(1).describe("Issue key, e.g. 'ABC-123'"),
         timeSpent: z
-          .union([z.string().min(1), z.number().int().min(1)])
-          .describe("Jira duration ('3h 30m') or seconds (12600)"),
+          .union([z.string().min(1), z.number().min(0)])
+          .describe("Jira duration ('3h 30m') or decimal hours ('8.05' or 8.05 -> '8h 3m')"),
         started: z
           .string()
-          .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)
+          .regex(/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2})?/)
           .optional()
-          .describe("Work start time, ISO 8601 with optional timezone offset, e.g. '2026-01-14T10:33:00.000+0000'"),
+          .describe(
+            "Work start date: full ISO 8601 ('2026-01-14T10:33:00.000+0000') or date-only 'YYYY-MM-DD' " +
+              "(time-of-day then comes from startedHour)",
+          ),
+        startedHour: z
+          .string()
+          .regex(/^([01]\d|2[0-3]):[0-5]\d$/)
+          .optional()
+          .describe(`Time-of-day "HH:mm" used when started is date-only (default "${DEFAULT_STARTED_HOUR}")`),
         comment: z.string().min(1).optional().describe("Optional worklog comment"),
         adjustEstimate: z
           .enum(["auto", "leave", "new", "manual"])

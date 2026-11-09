@@ -7,6 +7,7 @@ import { registerJiraAddAttachment } from "./jiraAddAttachment.js";
 import { registerJiraAddComment } from "./jiraAddComment.js";
 import { registerJiraAddRemoteLink } from "./jiraAddRemoteLink.js";
 import { registerJiraAddWorklog } from "./jiraAddWorklog.js";
+import { registerJiraProviderCall } from "./jiraProviderCall.js";
 import { registerJiraAssignIssue } from "./jiraAssignIssue.js";
 import { registerJiraCreateIssue } from "./jiraCreateIssue.js";
 import { registerJiraFindUser } from "./jiraFindUser.js";
@@ -66,4 +67,6 @@ export function registerAllTools(server: McpServer, ctx: ToolContext): void {
   registerJiraAddRemoteLink(server, ctx);
   registerJiraAddAttachment(server, ctx);
   registerJiraMoveIssuesToSprint(server, ctx);
+  // Extensibility
+  registerJiraProviderCall(server, ctx);
 }

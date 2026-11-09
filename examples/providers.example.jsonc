@@ -1,0 +1,49 @@
+// Example providers config for `jira_provider_call`.
+//
+// Copy this file, rename it (e.g. `jira-mcp.providers.jsonc`) and point the
+// server at it via the JIRA_PROVIDERS_CONFIG environment variable:
+//
+//   JIRA_PROVIDERS_CONFIG=/absolute/path/to/jira-mcp.providers.jsonc
+//
+// Every workplace defines its OWN endpoints here — the jira-mcp core package
+// ships no endpoint knowledge at all. Paths below are generic placeholders:
+// replace `<plugin>` with your plugin's REST namespace and adjust the paths
+// to match your instance.
+//
+// Schema per endpoint:
+//   method            "GET" | "POST"                       (required)
+//   path              path template under the instance root; {param}
+//                     placeholders are filled from the tool's `params`
+//                     argument                             (required)
+//   responseMapping   optional projection of the raw JSON — output field
+//                     name -> simple path ("total", "items[].hour")
+//   maxResponseBytes  optional response size guard in bytes
+//                     (default: 200000)
+{
+  "providers": {
+    "workplaceTimesheet": {
+      "description": "Example timesheet/attendance plugin (replace with your own)",
+      "endpoints": {
+        "dailyWorked": {
+          "method": "GET",
+          "path": "/rest/<plugin>/1.0/daily-worked?period={start}+-+{end}&periodMode=PERIOD&timesheetUser=currentUser()",
+          "responseMapping": {
+            "total": "total",
+            "dailyHours": "items[].hour",
+            "weekend": "items[].weekend"
+          },
+          "maxResponseBytes": 20000
+        },
+        "approvedHours": {
+          "method": "GET",
+          "path": "/rest/<plugin>/1.0/approved-hours?user={user}&month={month}",
+          "responseMapping": {
+            "approved": "approved",
+            "perDay": "days[].hours"
+          },
+          "maxResponseBytes": 20000
+        }
+      }
+    }
+  }
+}
