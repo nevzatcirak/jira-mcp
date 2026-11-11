@@ -3,7 +3,7 @@ import { z } from "zod";
 import { toMcpError } from "../util/errors.js";
 import { asRecord, asString } from "../util/json.js";
 import type { ToolContext } from "./registry.js";
-import { browseUrl, resolveUserFieldValue, withParentHint } from "./writeFields.js";
+import { browseUrl, DURATION_PATTERN, resolveUserFieldValue, timeTrackingFieldValue, withParentHint } from "./writeFields.js";
 
 const inputSchema = {
   project: z
@@ -43,6 +43,19 @@ const inputSchema = {
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional()
     .describe("Due date in YYYY-MM-DD format"),
+  originalEstimate: z
+    .string()
+    .regex(DURATION_PATTERN)
+    .optional()
+    .describe(
+      "Original estimate in Jira duration format, e.g. '2h', '1d 4h', '30m' " +
+        "(units depend on the instance's time tracking settings)",
+    ),
+  remainingEstimate: z
+    .string()
+    .regex(DURATION_PATTERN)
+    .optional()
+    .describe("Remaining estimate in Jira duration format, e.g. '1d', '3h 30m'"),
 };
 
 /**
@@ -80,6 +93,8 @@ export function registerJiraCreateIssue(server: McpServer, ctx: ToolContext): vo
         }
         if (args.duedate !== undefined) fields.duedate = args.duedate;
         if (args.parentKey !== undefined) fields.parent = { key: args.parentKey };
+        const timetracking = timeTrackingFieldValue(args.originalEstimate, args.remainingEstimate);
+        if (timetracking !== undefined) fields.timetracking = timetracking;
 
         const created = asRecord(
           await ctx.client.request("api/2/issue", { method: "POST", body: { fields } }),

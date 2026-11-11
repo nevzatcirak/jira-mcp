@@ -4,9 +4,11 @@ import { RestClient } from "../client/RestClient.js";
 import { JiraMcpError } from "../util/errors.js";
 import {
   commentBody,
+  DURATION_PATTERN,
   isAccountIdLike,
   projectUserCard,
   resolveUserFieldValue,
+  timeTrackingFieldValue,
   unassignBody,
 } from "./writeFields.js";
 import type { ToolContext } from "./registry.js";
@@ -166,6 +168,73 @@ describe("deployment-specific comment bodies", () => {
       version: 1,
       content: [{ type: "paragraph", content: [{ type: "text", text: "hi" }] }],
     });
+  });
+});
+
+describe("timeTrackingFieldValue (Server/DC schema)", () => {
+  it("builds fields.timetracking with camelCase keys from both estimates", () => {
+    const value = timeTrackingFieldValue("2h", "1d");
+    expect(value).toEqual({ originalEstimate: "2h", remainingEstimate: "1d" });
+  });
+
+  it("sends only the estimate that was provided (original only)", () => {
+    expect(timeTrackingFieldValue("1w 2d 3h", undefined)).toEqual({
+      originalEstimate: "1w 2d 3h",
+    });
+  });
+
+  it("sends only the estimate that was provided (remaining only)", () => {
+    expect(timeTrackingFieldValue(undefined, "30m")).toEqual({
+      remainingEstimate: "30m",
+    });
+  });
+
+  it("returns undefined when neither estimate is given (field untouched)", () => {
+    expect(timeTrackingFieldValue(undefined, undefined)).toBeUndefined();
+  });
+});
+
+describe("timeTrackingFieldValue (Cloud schema)", () => {
+  // Cloud uses the SAME camelCase shape as Server/DC — the lowercase
+  // "originalestimate"/"remainingestimate" form is not valid for this field.
+  it("builds fields.timetracking with camelCase keys from both estimates", () => {
+    const value = timeTrackingFieldValue("2h", "1d");
+    expect(value).toEqual({ originalEstimate: "2h", remainingEstimate: "1d" });
+  });
+
+  it("sends only the estimate that was provided (original only)", () => {
+    expect(timeTrackingFieldValue("1d 4h", undefined)).toEqual({
+      originalEstimate: "1d 4h",
+    });
+  });
+
+  it("sends only the estimate that was provided (remaining only)", () => {
+    expect(timeTrackingFieldValue(undefined, "45m")).toEqual({
+      remainingEstimate: "45m",
+    });
+  });
+
+  it("returns undefined when neither estimate is given (field untouched)", () => {
+    expect(timeTrackingFieldValue(undefined, undefined)).toBeUndefined();
+  });
+});
+
+describe("DURATION_PATTERN (Jira duration format)", () => {
+  it("accepts typical duration strings", () => {
+    expect(DURATION_PATTERN.test("2h")).toBe(true);
+    expect(DURATION_PATTERN.test("30m")).toBe(true);
+    expect(DURATION_PATTERN.test("1d 4h")).toBe(true);
+    expect(DURATION_PATTERN.test("1w 2d 3h")).toBe(true);
+    expect(DURATION_PATTERN.test("3h 25m")).toBe(true);
+    expect(DURATION_PATTERN.test("1w 2d 3h 4m")).toBe(true);
+  });
+
+  it("rejects non-duration strings", () => {
+    expect(DURATION_PATTERN.test("")).toBe(false);
+    expect(DURATION_PATTERN.test("2")).toBe(false);
+    expect(DURATION_PATTERN.test("2x")).toBe(false);
+    expect(DURATION_PATTERN.test("two hours")).toBe(false);
+    expect(DURATION_PATTERN.test("h2")).toBe(false);
   });
 });
 

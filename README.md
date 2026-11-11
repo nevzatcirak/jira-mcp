@@ -84,11 +84,24 @@ Run it yourself with `npm run benchmark -- "<your JQL>"` — numbers depend on y
 
 | Tool | Purpose | Key parameters |
 |---|---|---|
-| `jira_create_issue` | Create an issue; returns `{key, id, url}` | `project`, `issueType`, `summary`, `description?`, `assignee?`, `priority?`, `labels?`, `parentKey?` |
+| `jira_create_issue` | Create an issue; returns `{key, id, url}` | `project`, `issueType`, `summary`, `description?`, `assignee?`, `priority?`, `labels?`, `parentKey?`, `originalEstimate?`, `remainingEstimate?` |
 | `jira_update_issue` | Partial update — only provided fields change | `issueKey` + any create field |
 | `jira_transition_issue` | Semantic move: by target status **or** transition id | `issueKey`, `toStatus?` / `transitionId?`, `comment?` |
 | `jira_assign_issue` | Assign a user, or unassign with `"-none-"` | `issueKey`, `assignee` |
 | `jira_add_comment` | Add a comment (wiki string on Server/DC, ADF on Cloud — automatic) | `issueKey`, `comment` |
+
+**Estimates (time tracking).** `jira_create_issue` and `jira_update_issue` accept `originalEstimate`
+and `remainingEstimate` as Jira duration strings (`"2h"`, `"1d 4h"`, `"30m"`, `"1w 2d 3h"`):
+
+```json
+{ "tool": "jira_update_issue", "arguments": { "issueKey": "ABC-123", "originalEstimate": "2h" } }
+```
+
+> **Note:** duration units are interpreted by the instance's time tracking settings — `1d`
+> means `hoursPerDay` hours, which can differ per instance (so `"1d"` is not always the same
+> number of seconds everywhere). Estimates are only sent when provided; on update, fields you
+> omit are left untouched. On Cloud, a known Atlassian bug (JRACLOUD-67539) makes a
+> single-field update overwrite the other estimate — send both together on Cloud.
 
 ### ⏱️ Time & Links
 
@@ -142,7 +155,7 @@ node dist/index.js
 
 ```bash
 jira-mcp --version
-# @nevzatcirak/jira-mcp 1.1.0
+# @nevzatcirak/jira-mcp 1.1.1
 ```
 
 ---
@@ -408,25 +421,31 @@ gets its time-of-day from `startedHour` (default `07:30`):
 { "tool": "jira_add_worklog", "arguments": { "issueKey": "ABC-123", "timeSpent": 8.05, "started": "2026-11-09", "startedHour": "08:45", "comment": "Turnstile-tracked day" } }
 ```
 
-**5 · Attach a web link:**
+**5 · Set estimates (time tracking):**
+
+```json
+{ "tool": "jira_update_issue", "arguments": { "issueKey": "ABC-123", "originalEstimate": "2h", "remainingEstimate": "1d" } }
+```
+
+**6 · Attach a web link:**
 
 ```json
 { "tool": "jira_add_remote_link", "arguments": { "issueKey": "ABC-123", "url": "https://design.example.com/spec-7", "title": "Design spec" } }
 ```
 
-**6 · Semantic transition (no transition IDs needed):**
+**7 · Semantic transition (no transition IDs needed):**
 
 ```json
 { "tool": "jira_transition_issue", "arguments": { "issueKey": "ABC-123", "toStatus": "Done", "comment": "Verified on staging" } }
 ```
 
-**7 · Move issues into a sprint:**
+**8 · Move issues into a sprint:**
 
 ```json
 { "tool": "jira_move_issues_to_sprint", "arguments": { "sprintId": 318, "issueKeys": ["ABC-123", "ABC-124", "ABC-125"] } }
 ```
 
-**8 · Find a user, then assign:**
+**9 · Find a user, then assign:**
 
 ```json
 { "tool": "jira_find_user", "arguments": { "query": "Jane Doe" } }
@@ -436,7 +455,7 @@ gets its time-of-day from `startedHour` (default `07:30`):
 { "tool": "jira_assign_issue", "arguments": { "issueKey": "ABC-123", "assignee": "jdoe" } }
 ```
 
-**9 · Call a workplace plugin endpoint (custom provider):**
+**10 · Call a workplace plugin endpoint (custom provider):**
 
 ```json
 { "tool": "jira_provider_call", "arguments": { "provider": "workplaceTimesheet", "endpoint": "dailyWorked", "params": { "start": "2026-11-02", "end": "2026-11-08" } } }

@@ -2,7 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { JiraMcpError, toMcpError } from "../util/errors.js";
 import type { ToolContext } from "./registry.js";
-import { resolveUserFieldValue, withParentHint } from "./writeFields.js";
+import { DURATION_PATTERN, resolveUserFieldValue, timeTrackingFieldValue, withParentHint } from "./writeFields.js";
 
 /**
  * PUT /rest/api/2/issue/{key} — partial update: only fields explicitly passed
@@ -49,6 +49,19 @@ export function registerJiraUpdateIssue(server: McpServer, ctx: ToolContext): vo
           .regex(/^\d{4}-\d{2}-\d{2}$/)
           .optional()
           .describe("Due date in YYYY-MM-DD format"),
+        originalEstimate: z
+          .string()
+          .regex(DURATION_PATTERN)
+          .optional()
+          .describe(
+            "New original estimate in Jira duration format, e.g. '2h', '1d 4h' " +
+              "(units depend on the instance's time tracking settings)",
+          ),
+        remainingEstimate: z
+          .string()
+          .regex(DURATION_PATTERN)
+          .optional()
+          .describe("New remaining estimate in Jira duration format, e.g. '1d', '3h 30m'"),
       },
     },
     async (args) => {
@@ -70,6 +83,8 @@ export function registerJiraUpdateIssue(server: McpServer, ctx: ToolContext): vo
           fields.fixVersions = args.fixVersions.map((name) => ({ name }));
         }
         if (args.duedate !== undefined) fields.duedate = args.duedate;
+        const timetracking = timeTrackingFieldValue(args.originalEstimate, args.remainingEstimate);
+        if (timetracking !== undefined) fields.timetracking = timetracking;
 
         const changed = Object.keys(fields);
         if (changed.length === 0) {

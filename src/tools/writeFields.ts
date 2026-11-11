@@ -9,6 +9,36 @@ import { asRecord, asString } from "../util/json.js";
  * - comment bodies: Server/DC plain wiki string, Cloud ADF document
  */
 
+/** Jira duration format: one or more "<number><w|d|h|m>" groups, e.g. "2h", "1d 4h", "1w 2d 3h 30m". */
+export const DURATION_PATTERN = /^\d+\s*[wdhm](\s+\d+\s*[wdhm])*$/i;
+
+/**
+ * Build the `timetracking` field value for issue create/update from the
+ * given estimate inputs. Both Server/DC and Cloud use the same camelCase
+ * shape (verified against Atlassian docs — Cloud does NOT use a lowercase
+ * ADF-style form for this field):
+ *
+ *   fields.timetracking = { originalEstimate: "2h", remainingEstimate: "1d" }
+ *
+ * Only the values that were provided are included (partial update semantics:
+ * a field that is not given is not sent, so Jira leaves it untouched).
+ * Returns undefined when neither estimate was provided.
+ *
+ * Note: duration units (w/d/h/m) are interpreted by the instance's time
+ * tracking settings — "1d" is `workingHoursPerDay` hours, which can differ
+ * per instance.
+ */
+export function timeTrackingFieldValue(
+  originalEstimate?: string,
+  remainingEstimate?: string,
+): Record<string, unknown> | undefined {
+  if (originalEstimate === undefined && remainingEstimate === undefined) return undefined;
+  const timetracking: Record<string, unknown> = {};
+  if (originalEstimate !== undefined) timetracking.originalEstimate = originalEstimate;
+  if (remainingEstimate !== undefined) timetracking.remainingEstimate = remainingEstimate;
+  return timetracking;
+}
+
 /**
  * Heuristic for "this looks like an Atlassian accountId" (24-hex chars,
  * optionally prefixed with a site id like "557058:"), as opposed to a
