@@ -55,6 +55,18 @@ Run it yourself with `npm run benchmark -- "<your JQL>"` — numbers depend on y
 
 ---
 
+## Atlassian MCP Suite
+
+| Package | Scope |
+|---|---|
+| [@nevzatcirak/jira-mcp](https://www.npmjs.com/package/@nevzatcirak/jira-mcp) | Jira issues, boards, sprints, worklogs |
+| [@nevzatcirak/bitbucket-mcp](https://www.npmjs.com/package/@nevzatcirak/bitbucket-mcp) | Bitbucket Server/DC + Cloud: PRs, reviews, branches, code search |
+| [@nevzatcirak/confluence-mcp](https://www.npmjs.com/package/@nevzatcirak/confluence-mcp) | Confluence Server/DC + Cloud: pages, CQL search, labels, markdown round-trip |
+
+Install the other two depending on the client you use: `npx @nevzatcirak/bitbucket-mcp` · `npx @nevzatcirak/confluence-mcp`
+
+---
+
 ## ✨ Features (25 tools)
 
 ### 🔍 Discovery
