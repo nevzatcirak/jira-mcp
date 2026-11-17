@@ -43,6 +43,9 @@ jobs:
             exit 1
           fi
 
+      - name: Guard — no organization references in sources
+        run: npm run check:org
+
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
 

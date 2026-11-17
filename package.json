@@ -43,8 +43,10 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
+    "pretest": "npm run build",
     "test": "vitest run",
     "lint": "eslint .",
+    "check:org": "node scripts/check-org.mjs",
     "benchmark": "tsc -p tsconfig.benchmark.json && node dist-benchmark/benchmark/search-size.js"
   },
   "dependencies": {
